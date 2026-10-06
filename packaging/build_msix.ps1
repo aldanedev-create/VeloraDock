@@ -24,8 +24,12 @@ if (-not $process.WaitForExit(90000)) {
         $diagnostic = Get-Content $result -Raw
         throw "Frozen desktop startup timed out: $diagnostic"
     }
+    $startupLog = Join-Path $testData "startup.log"
+    if (Test-Path $startupLog) { Get-Content $startupLog }
     throw "Frozen desktop startup timed out without a result"
 }
+$startupLog = Join-Path $testData "startup.log"
+if (Test-Path $startupLog) { Get-Content $startupLog }
 if (-not (Test-Path $result)) { throw "Frozen desktop did not produce a startup result" }
 $check = Get-Content $result -Raw | ConvertFrom-Json
 if ($process.ExitCode -ne 0 -or -not $check.ok) { throw "Frozen desktop startup failed: $($check.error)" }

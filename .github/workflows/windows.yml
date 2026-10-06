@@ -61,4 +61,6 @@ jobs:
         if: always()
         with:
           name: VeloraDock-diagnostics
-          path: build/native-smoke.json
+          path: |
+            build/native-smoke.json
+            build/native-smoke-data/startup.log
