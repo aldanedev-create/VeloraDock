@@ -61,6 +61,8 @@ class Search:
 
 
 def index_folder(store, path: str):
+    if not path.strip():
+        raise ValueError("Enter a folder path or use Browse")
     root = Path(path).expanduser().resolve(strict=True)
     if not root.is_dir() or root.is_symlink():
         raise ValueError("Choose a real folder")
@@ -70,7 +72,10 @@ def index_folder(store, path: str):
     identifier = store.rows("SELECT id FROM roots WHERE path=?", (str(root),))[0]['id']
     import os
     entries, skipped = [], 0
-    for directory, folders, files in os.walk(root, followlinks=False):
+    def inaccessible(error):
+        nonlocal skipped
+        skipped += 1
+    for directory, folders, files in os.walk(root, followlinks=False, onerror=inaccessible):
         folders[:] = [name for name in folders if not name.startswith('.') and not Path(directory, name).is_symlink() and not getattr(Path(directory, name), 'is_junction', lambda: False)()]
         for name in files:
             candidate = Path(directory, name)

@@ -76,15 +76,17 @@ def register_routes(app):
         return {'ok': True}
     endpoint('/api/extension', extension)
     def settings(payload):
-        if 'clipboard_enabled' in payload:
-            if type(payload['clipboard_enabled']) != bool:
-                raise ValueError('Clipboard option must be boolean')
-            app.store.set_setting('clipboard_enabled', payload['clipboard_enabled'])
+        if 'clipboard_enabled' in payload and type(payload['clipboard_enabled']) != bool:
+            raise ValueError('Clipboard option must be boolean')
         if 'clipboard_days' in payload:
             days = int(payload['clipboard_days'])
             if days not in {1, 7, 30}:
                 raise ValueError('Choose 1, 7 or 30 days')
-            app.store.set_setting('clipboard_days', days)
+        with app.store.connect() as connection:
+            for key in ('clipboard_enabled', 'clipboard_days'):
+                if key in payload:
+                    connection.execute('INSERT OR REPLACE INTO settings VALUES (?,?)', (key, json.dumps(days if key == 'clipboard_days' else payload[key])))
+        if 'clipboard_days' in payload:
             app.clipboard.prune()
         return {'ok': True}
     endpoint('/api/settings', settings)

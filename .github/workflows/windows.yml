@@ -62,5 +62,6 @@ jobs:
         with:
           name: VeloraDock-diagnostics
           path: |
+            build/browser-workspace.png
             build/native-smoke.json
             build/native-smoke-data/startup.log

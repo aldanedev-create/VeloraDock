@@ -30,9 +30,11 @@ class Bridge:
             kind, value = identifier.split(':', 1)
             if kind != 'file':
                 raise ValueError('Choose a file result')
-            rows = self._app.store.rows('SELECT path FROM files WHERE id=?', (int(value),))
+            rows = self._app.store.rows('SELECT files.path, roots.path AS root FROM files JOIN roots ON roots.id=files.root_id WHERE files.id=?', (int(value),))
             if not rows or not Path(rows[0]['path']).is_file():
                 raise ValueError('File is unavailable')
+            if not Path(rows[0]['path']).resolve().is_relative_to(Path(rows[0]['root']).resolve()):
+                raise ValueError('File is outside the registered folder')
             import subprocess
             subprocess.Popen(['explorer.exe', '/select,', rows[0]['path']], shell=False)
             return {'message': 'Opened its folder.'}

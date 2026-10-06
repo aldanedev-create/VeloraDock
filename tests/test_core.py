@@ -110,7 +110,7 @@ def test_store_identity_matches_reserved_values():
     identity = root.find('p:Identity', ns)
     assert identity.attrib['Name'] == 'HappyRecorder3D.VeloraDock'
     assert identity.attrib['Publisher'] == 'CN=50CA2AC2-0155-44AC-B2B0-47100A3FB6E2'
-    assert identity.attrib['Version'] == '1.0.0.0'
+    assert identity.attrib['Version'] == '1.0.1.0'
     assert root.find('p:Properties/p:PublisherDisplayName', ns).text == 'Happy Recorder 3D'
 
 
@@ -130,3 +130,21 @@ def test_store_closes_connections_and_rolls_back(tmp_path):
     assert store.setting('discarded') is None
     with pytest.raises(sqlite3.ProgrammingError):
         transaction.execute('SELECT 1')
+
+
+def test_index_rejects_empty_folder(app):
+    from veloradock.providers import index_folder
+    with pytest.raises(ValueError, match='Enter a folder'):
+        index_folder(app.store, '   ')
+    assert app.store.rows('SELECT * FROM roots') == []
+
+
+def test_reveal_rejects_file_outside_root(app, tmp_path):
+    from veloradock.bridge import Bridge
+    root = tmp_path / 'registered'
+    root.mkdir()
+    outside = tmp_path / 'outside.txt'
+    outside.write_text('private')
+    root_id = app.store.execute('INSERT INTO roots(path) VALUES (?)', (str(root),))
+    file_id = app.store.execute('INSERT INTO files(root_id,path,name,folded) VALUES (?,?,?,?)', (root_id, str(outside), outside.name, outside.name))
+    assert 'outside' in Bridge(app).reveal_file(f'file:{file_id}')['error']

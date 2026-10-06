@@ -1,6 +1,6 @@
 import { createLandscape } from "./landscape.ts";
 
-export async function createWorld(host: HTMLElement, onDestination: (query: string) => void): Promise<any> {
+export async function createWorld(host: HTMLCanvasElement, onDestination: (query: string) => void): Promise<any> {
   // The Three.js runtime is packaged locally and loaded only when the world is enabled.
   const moduleUrl: string = "/assets/vendor/three.module.js";
   const THREE: any = await import(moduleUrl);
@@ -8,10 +8,11 @@ export async function createWorld(host: HTMLElement, onDestination: (query: stri
   scene.background = new THREE.Color(0xadcfcf);
   scene.fog = new THREE.FogExp2(0xadcfcf, .0018);
   const camera = new THREE.PerspectiveCamera(55, 1, .5, 1800);
-  const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "low-power" });
+  if (!host) throw new Error("World canvas was not mounted");
+  const renderer = new THREE.WebGLRenderer({ canvas: host, antialias: true, powerPreference: "low-power" });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.25));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-  host.appendChild(renderer.domElement);
+  const viewport = host.parentElement as HTMLElement;
   renderer.domElement.setAttribute("aria-label", "Explorable VeloraDock islands. Drag to look, scroll to zoom, use W A S D to move.");
   renderer.domElement.tabIndex = 0;
   scene.add(new THREE.HemisphereLight(0xe6fbff, 0x426257, 2.7));
@@ -41,8 +42,8 @@ export async function createWorld(host: HTMLElement, onDestination: (query: stri
     renderer.render(scene, camera);
   }
   function resize() {
-    renderer.setSize(host.clientWidth || 1, host.clientHeight || 1, false);
-    camera.aspect = (host.clientWidth || 1) / (host.clientHeight || 1);
+    renderer.setSize(viewport.clientWidth || 1, viewport.clientHeight || 1, false);
+    camera.aspect = (viewport.clientWidth || 1) / (viewport.clientHeight || 1);
     camera.updateProjectionMatrix();
     render();
   }
@@ -120,7 +121,7 @@ export async function createWorld(host: HTMLElement, onDestination: (query: stri
   function blur() { keys.clear(); dragging = false; }
   function motion() { paused = reduced.matches; schedule(); render(); }
   const observer = new ResizeObserver(resize);
-  observer.observe(host);
+  observer.observe(viewport);
   renderer.domElement.addEventListener("pointerdown", pointerDown);
   renderer.domElement.addEventListener("pointermove", pointerMove);
   renderer.domElement.addEventListener("pointerup", pointerUp);
@@ -148,6 +149,14 @@ export async function createWorld(host: HTMLElement, onDestination: (query: stri
     dispose() {
       cancelAnimationFrame(frame);
       observer.disconnect();
+      renderer.domElement.removeEventListener("pointerdown", pointerDown);
+      renderer.domElement.removeEventListener("pointermove", pointerMove);
+      renderer.domElement.removeEventListener("pointerup", pointerUp);
+      renderer.domElement.removeEventListener("pointercancel", blur);
+      renderer.domElement.removeEventListener("wheel", wheel);
+      renderer.domElement.removeEventListener("keydown", keyDown);
+      renderer.domElement.removeEventListener("keyup", keyUp);
+      renderer.domElement.removeEventListener("blur", blur);
       document.removeEventListener("visibilitychange", visibility);
       reduced.removeEventListener("change", motion);
       scene.traverse((object: any) => {
@@ -158,8 +167,7 @@ export async function createWorld(host: HTMLElement, onDestination: (query: stri
         }
       });
       renderer.dispose();
-      renderer.forceContextLoss();
-      renderer.domElement.remove();
+      renderer.clear();
     },
   };
 }
