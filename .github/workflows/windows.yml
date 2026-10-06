@@ -30,7 +30,7 @@ jobs:
           python -m pip install -e vendor/teloce -e vendor/flaxon -e . --no-deps
           python -m pip freeze > build-environment.txt
       - name: Test providers and application
-        run: python -m pytest -q
+        run: python -m pytest tests -q
       - name: Browser interaction test
         env:
           VELORA_BROWSER_TESTS: '1'
