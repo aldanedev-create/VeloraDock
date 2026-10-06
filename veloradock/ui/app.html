@@ -1,0 +1,147 @@
+<template>
+  <main>
+    <header>
+      <div><img class="brand" src="/assets/logo.svg" alt=""><strong>VeloraDock</strong><small> Your local command space</small></div>
+      <button @click="settings = !settings">{{ settings ? 'Back to search' : 'Settings' }}</button>
+    </header>
+    <WorldScene @destination="visit" />
+    <section v-if="!settings" class="search-area">
+      <label for="search-box">What would you like to do?</label>
+      <input id="search-box" v-model="query" @keydown="onKey" placeholder="Search apps, files, actions… or type 12 km to mi" autocomplete="off">
+      <p class="hint">app · file · run · clip · = 2 * (3 + 4)</p>
+      <p role="status">{{ message }}</p>
+      <div role="listbox" aria-label="Search results">
+        <button v-for="(result, index) in results" :key="result.id" class="result" :class="{ selected: index === selected }" role="option" :aria-selected="index === selected" @click="activate(result)">
+          <span class="kind">{{ result.kind }}</span>
+          <span><strong>{{ result.title }}</strong><small>{{ result.subtitle }}</small></span>
+          <span>↵</span>
+        </button>
+      </div>
+      <p v-if="results.length === 0 && !busy" class="empty">No matching results. Add a folder or action in Settings.</p>
+      <footer>↑ ↓ select · Enter open · Alt+Enter reveal file · Esc hide <span>{{ elapsed }} ms server search</span></footer>
+    </section>
+    <SettingsPanel v-if="settings" :token="token" />
+    <section v-if="pending" class="confirmation" role="dialog" aria-modal="true" aria-label="Run registered action">
+      <h2>Run this registered action?</h2><p>{{ pending.title }}</p><p>{{ pending.subtitle }}</p>
+      <p>The action runs with your Windows account permissions. Only run files you trust.</p>
+      <button @click="confirmAction">Run action</button><button @click="pending = null">Cancel</button>
+    </section>
+  </main>
+</template>
+<script lang="ts">
+import WorldScene from "./components/WorldScene.html";
+import SettingsPanel from "./components/SettingsPanel.html";
+import { request, native } from "./api.ts";
+import type { Result, SearchResponse } from "./types.ts";
+
+export default {
+  props: ["token"],
+  components: { SettingsPanel, WorldScene },
+  data() {
+    const results: Result[] = [];
+    return { query: "", results, selected: 0, settings: false, message: "Ready", busy: false, elapsed: 0, pending: null, _timer: null, _sequence: 0 };
+  },
+  watch: {
+    query() {
+      clearTimeout(this._timer);
+      // Invalidate an older response as soon as the query changes.
+      this._sequence++;
+      this._timer = setTimeout(() => this.search(), 90);
+    },
+  },
+  methods: {
+    visit(query: string) { this.settings = false; this.query = query; requestAnimationFrame(() => (document.querySelector("#search-box") as HTMLInputElement)?.focus()); },
+    async search() {
+      const sequence = ++this._sequence;
+      this.busy = true;
+      const started: number = performance.now();
+      try {
+        const data: SearchResponse = await request("/api/search", this.token, { query: this.query });
+        if (sequence !== this._sequence) return;
+        this.results = data.items;
+        this.selected = 0;
+        this.elapsed = data.elapsed_ms;
+        this.message = `${this.results.length} results`;
+        request("/api/metric", this.token, { kind: "search_roundtrip", duration_ms: performance.now() - started }).catch(() => {});
+      } catch (error) {
+        if (sequence === this._sequence) this.message = String(error);
+      } finally {
+        if (sequence === this._sequence) this.busy = false;
+      }
+    },
+    onKey(event: KeyboardEvent) {
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        this.selected = Math.min(this.results.length - 1, this.selected + 1);
+      } else if (event.key === "ArrowUp") {
+        event.preventDefault();
+        this.selected = Math.max(0, this.selected - 1);
+      } else if (event.key === "Enter") {
+        event.preventDefault();
+        if (this.results[this.selected]) {
+          if (event.altKey && this.results[this.selected].kind === "file" && native()) {
+            native().reveal_file(this.results[this.selected].id).then(reply => { this.message = reply.error || reply.message; });
+          } else this.activate(this.results[this.selected]);
+        }
+      } else if (event.key === "Escape") {
+        if (this.pending) this.pending = null;
+        else if (native()) native().hide();
+      }
+    },
+    async activate(result: Result) {
+      if (result.confirm) {
+        this.pending = result;
+        return;
+      }
+      await this.execute(result, false);
+    },
+    async execute(result: Result, confirmed: boolean) {
+      const bridge = native();
+      if (!bridge) {
+        this.message = "Opening files, scripts and clipboard requires the Windows desktop app.";
+        return;
+      }
+      const reply = await bridge.execute(result.id, confirmed);
+      this.message = reply.error || reply.message || "Done";
+    },
+    async confirmAction() {
+      const result = this.pending;
+      this.pending = null;
+      if (result) await this.execute(result, true);
+    },
+  },
+  mounted() {
+    (window as any).veloraFocus = () => {
+      this.settings = false;
+      this.pending = null;
+      requestAnimationFrame(() => {
+        const input = document.querySelector("#search-box") as HTMLInputElement;
+        input?.focus();
+        requestAnimationFrame(() => native()?.ui_ready());
+      });
+    };
+    (window as any).veloraFocus();
+    this.search();
+  },
+  beforeUnmount() {
+    clearTimeout(this._timer);
+    delete (window as any).veloraFocus;
+  },
+};
+</script>
+<style scoped>
+main { max-width: 960px; margin: auto; padding: 24px; }
+header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px; }
+header small { color: #a5b7cd; }
+.brand { width: 36px; height: 36px; vertical-align: middle; background: #72e6bd; color: #111a30; border-radius: 10px; padding: 8px 13px; margin-right: 12px; font-weight: 800; }
+.search-area label { display: block; font-size: 1.5rem; margin-bottom: 14px; font-weight: 650; }
+#search-box { width: 100%; box-sizing: border-box; font-size: 1.1rem; padding: 18px; border: 1px solid #527084; border-radius: 14px; background: #16263a; color: white; }
+.hint, .empty, footer { color: #a5b7cd; }
+.result { display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; margin: 6px 0; padding: 14px; border: 1px solid transparent; border-radius: 12px; background: #162337; color: white; }
+.result.selected { border-color: #72e6bd; background: #213b43; }
+.result > span:nth-child(2) { flex: 1; overflow-wrap: anywhere; }
+.result small { display: block; margin-top: 5px; color: #b1c1d3; font-size: .8rem; }
+.kind { font-size: .7rem; text-transform: uppercase; color: #72e6bd; min-width: 50px; }
+footer { display: flex; justify-content: space-between; margin-top: 25px; font-size: .8rem; }
+.confirmation { position: fixed; inset: 20% 10% auto; padding: 24px; border: 2px solid #72e6bd; background: #17283c; border-radius: 18px; box-shadow: 0 0 0 100vmax #060d18cc; }
+</style>

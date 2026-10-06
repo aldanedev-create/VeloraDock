@@ -1,0 +1,27 @@
+<template>
+  <section>
+    <h1>Make it yours</h1>
+    <SourcesSettings :token="token" />
+    <ActionsSettings :token="token" />
+    <ClipboardSettings :token="token" />
+    <ExtensionsSettings :token="token" />
+    <DiagnosticsSettings :token="token" />
+    <article><h2>Quick tutorial</h2><ol><li>Refresh apps, then add a folder.</li><li>Use the hotkey and type an app name or file name.</li><li>Try 12 km to mi or = 2 * (3 + 4).</li><li>Register a trusted action and search run followed by its keyword.</li><li>Enable clipboard collection only if you want it; search clip followed by text.</li></ol></article>
+  </section>
+</template>
+<script lang="ts">
+import SourcesSettings from "./SourcesSettings.html";
+import ActionsSettings from "./ActionsSettings.html";
+import ClipboardSettings from "./ClipboardSettings.html";
+import ExtensionsSettings from "./ExtensionsSettings.html";
+import DiagnosticsSettings from "./DiagnosticsSettings.html";
+
+export default {
+  props: ["token"],
+  components: { SourcesSettings, ActionsSettings, ClipboardSettings, ExtensionsSettings, DiagnosticsSettings },
+};
+</script>
+<style scoped>
+article { padding: 20px; border: 1px solid #334b60; border-radius: 14px; }
+li { margin-bottom: 10px; }
+</style>

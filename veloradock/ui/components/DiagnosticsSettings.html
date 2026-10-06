@@ -1,0 +1,61 @@
+<template>
+  <section>
+    <p role="status">{{ message }}</p>
+    <article>
+      <h2>Shortcut and measurements</h2>
+      <select v-model="hotkey" aria-label="Global shortcut"><option>Ctrl+Alt+Space</option><option>Ctrl+Shift+Space</option><option>Alt+Space</option></select>
+      <button @click="saveHotkey">Save shortcut</button><button @click="measurements">Show measurements</button>
+      <p>Shortcut changes need a restart. VeloraDock stays in the tray when closed. Choose Quit in the tray to exit.</p>
+      <pre>{{ report }}</pre>
+    </article>
+  </section>
+</template>
+<script lang="ts">
+import { request, native } from "../api.ts";
+
+export default {
+  props: ["token"],
+  data() {
+    return {
+      state: {},
+      message: "",
+      hotkey: "Ctrl+Alt+Space",
+      report: "",
+    };
+  },
+  methods: {
+    async load() {
+      this.state = await request("/api/state", this.token);
+      this.hotkey = this.state.hotkey;
+    },
+    async saveHotkey() {
+      if (!native()) { this.message = "Use the Windows desktop app to configure global shortcuts."; return; }
+      const reply = await native().set_hotkey(this.hotkey);
+      this.message = reply.error || reply.message;
+    },
+    async measurements() {
+      try {
+        const data = await request("/api/metrics", this.token);
+        const diagnostics = native() ? await native().diagnostics() : {};
+        this.report = JSON.stringify({ ...diagnostics, ...data }, null, 2);
+      } catch (error) { this.message = String(error); }
+    },
+  },
+  async mounted() {
+    try { await this.load(); }
+    catch (error) { this.message = String(error); }
+  },
+};
+</script>
+<style scoped>
+
+article { background: #162337; border: 1px solid #334b60; border-radius: 14px; padding: 20px; margin: 18px 0; }
+h2 { font-size: 1.15rem; }
+label { display: block; margin: 12px 0; }
+label input:not([type="checkbox"]), textarea { display: block; width: 100%; box-sizing: border-box; margin-top: 6px; }
+button { margin: 4px; }
+p { color: #becddd; line-height: 1.5; }
+li { margin-bottom: 10px; overflow-wrap: anywhere; }
+pre { white-space: pre-wrap; max-height: 300px; overflow: auto; }
+
+</style>

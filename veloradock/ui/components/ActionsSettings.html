@@ -1,0 +1,72 @@
+<template>
+  <section>
+    <p role="status">{{ message }}</p>
+    <article>
+      <h2>Registered local actions</h2>
+      <label>Name <input v-model="actionName" placeholder="Open my project"></label>
+      <label>Keyword <input v-model="keyword" placeholder="project"></label>
+      <label>File <input v-model="actionPath" placeholder="Choose a .ps1, .py or .exe"></label>
+      <button @click="chooseAction">Browse</button>
+      <label>Arguments as a JSON array <textarea v-model="arguments" placeholder='["--example"]'></textarea></label>
+      <button @click="register">Register action</button>
+      <ul><li v-for="action in state.actions" :key="action.id">{{ action.name }} · {{ action.keyword }} <button @click="remove('action', action.id)">Remove</button></li></ul>
+      <p>Actions run only after confirmation. Python actions require an installed Python interpreter in packaged builds. Existing PowerShell policy is respected.</p>
+    </article>
+  </section>
+</template>
+<script lang="ts">
+import { request, native } from "../api.ts";
+
+export default {
+  props: ["token"],
+  data() {
+    return {
+      state: { actions: [] },
+      message: "",
+      actionName: "",
+      keyword: "",
+      actionPath: "",
+      arguments: "[]",
+      busy: false,
+    };
+  },
+  methods: {
+    async load() {
+      this.state = await request("/api/state", this.token);
+    },
+    async perform(path: string, payload: object = {}) {
+      this.busy = true;
+      try {
+        const result = await request(path, this.token, payload);
+        this.message = JSON.stringify(result);
+        await this.load();
+      } catch (error) {
+        this.message = String(error);
+      } finally { this.busy = false; }
+    },
+    async chooseAction() { if (native()) this.actionPath = await native().choose_action() || this.actionPath; },
+    async register() {
+      try {
+        await this.perform("/api/action", { name: this.actionName, keyword: this.keyword, path: this.actionPath, args: JSON.parse(this.arguments) });
+      } catch { this.message = "Arguments must be a JSON array of strings."; }
+    },
+    async remove(kind: string, id: string) { await this.perform("/api/remove", { kind, id }); },
+  },
+  async mounted() {
+    try { await this.load(); }
+    catch (error) { this.message = String(error); }
+  },
+};
+</script>
+<style scoped>
+
+article { background: #162337; border: 1px solid #334b60; border-radius: 14px; padding: 20px; margin: 18px 0; }
+h2 { font-size: 1.15rem; }
+label { display: block; margin: 12px 0; }
+label input:not([type="checkbox"]), textarea { display: block; width: 100%; box-sizing: border-box; margin-top: 6px; }
+button { margin: 4px; }
+p { color: #becddd; line-height: 1.5; }
+li { margin-bottom: 10px; overflow-wrap: anywhere; }
+pre { white-space: pre-wrap; max-height: 300px; overflow: auto; }
+
+</style>

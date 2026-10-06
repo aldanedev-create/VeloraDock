@@ -1,0 +1,78 @@
+<template>
+  <section>
+    <p role="status">{{ message }}</p>
+    <article>
+      <h2>Clipboard history</h2>
+      <label><input type="checkbox" v-model="enabled"> Collect text clipboard history</label>
+      <label>Retention <select v-model="days"><option value="1">1 day</option><option value="7">7 days</option><option value="30">30 days</option></select></label>
+      <button @click="saveClipboard">Save / pause collection</button><button @click="clearClipboard">Clear all history</button>
+      <p>Off by default. Text only, up to 10,000 characters. Stored locally with Windows account encryption. Clipboard content may include secrets; exclusions are not automatic.</p>
+      <button @click="loadClips">Manage saved clips</button>
+      <ul><li v-for="clip in clips" :key="clip.id">{{ clip.text.slice(0, 80) }} <button @click="favorite(clip)">{{ clip.favorite ? 'Unpin' : 'Pin' }}</button></li></ul>
+    </article>
+  </section>
+</template>
+<script lang="ts">
+import { request, native } from "../api.ts";
+
+export default {
+  props: ["token"],
+  data() {
+    return {
+      state: {},
+      message: "",
+      enabled: false,
+      days: "7",
+      clips: [],
+      busy: false,
+    };
+  },
+  methods: {
+    async load() {
+      this.state = await request("/api/state", this.token);
+      this.enabled = this.state.clipboard_enabled;
+      this.days = String(this.state.clipboard_days);
+    },
+    async perform(path: string, payload: object = {}) {
+      this.busy = true;
+      try {
+        const result = await request(path, this.token, payload);
+        this.message = JSON.stringify(result);
+        await this.load();
+      } catch (error) {
+        this.message = String(error);
+      } finally { this.busy = false; }
+    },
+    async saveClipboard() { await this.perform("/api/settings", { clipboard_enabled: this.enabled, clipboard_days: Number(this.days) }); },
+    async clearClipboard() {
+      if (confirm("Clear all saved clipboard items, including pinned items?")) {
+        await this.perform("/api/clips/clear"); this.clips = [];
+      }
+    },
+    async loadClips() {
+      try { this.clips = (await request("/api/clips", this.token)).items; }
+      catch (error) { this.message = String(error); }
+    },
+    async favorite(clip) {
+      await this.perform("/api/clips/favorite", { id: clip.id, favorite: !clip.favorite });
+      await this.loadClips();
+    },
+  },
+  async mounted() {
+    try { await this.load(); }
+    catch (error) { this.message = String(error); }
+  },
+};
+</script>
+<style scoped>
+
+article { background: #162337; border: 1px solid #334b60; border-radius: 14px; padding: 20px; margin: 18px 0; }
+h2 { font-size: 1.15rem; }
+label { display: block; margin: 12px 0; }
+label input:not([type="checkbox"]), textarea { display: block; width: 100%; box-sizing: border-box; margin-top: 6px; }
+button { margin: 4px; }
+p { color: #becddd; line-height: 1.5; }
+li { margin-bottom: 10px; overflow-wrap: anywhere; }
+pre { white-space: pre-wrap; max-height: 300px; overflow: auto; }
+
+</style>

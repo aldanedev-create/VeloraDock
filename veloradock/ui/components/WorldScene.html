@@ -1,0 +1,60 @@
+<template>
+  <section class="world" aria-label="Island world">
+    <div ref="viewport" class="viewport"></div>
+    <div class="toolbar">
+      <div><strong>Your island workspace</strong><small>{{ status }}</small></div>
+      <button @click="toggle">{{ enabled ? 'Disable 3D' : 'Enable 3D' }}</button>
+      <button v-if="ready" @click="explore">{{ exploring ? 'Stop exploring' : 'Explore' }}</button>
+      <button v-if="ready" @click="pause">{{ paused ? 'Animate' : 'Pause' }}</button>
+    </div>
+    <nav v-if="ready && exploring" aria-label="Island destinations">
+      <button @click="travel(0)">Home</button><button @click="travel(1)">Apps</button><button @click="travel(2)">Files</button><button @click="travel(3)">Actions</button><button @click="travel(4)">Clipboard</button><button @click="travel(5)">Numbers</button>
+      <small>Drag to look · wheel to zoom · click the world, then WASD to move. Select a beacon to search.</small>
+    </nav>
+  </section>
+</template>
+<script lang="ts">
+import { createWorld } from "../world/scene.ts";
+export default {
+  emits: ["destination"],
+  data() { return { enabled: true, ready: false, exploring: false, paused: false, status: "Loading islands…", _scene: null, _generation: 0 }; },
+  methods: {
+    async load() {
+      const generation = ++this._generation;
+      this.status = "Loading islands…";
+      try {
+        const scene = await createWorld(this.$refs.viewport, query => this.$emit("destination", query));
+        if (generation !== this._generation || !this.enabled) { scene.dispose(); return; }
+        this._scene = scene;
+        this.ready = true;
+        this.paused = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        this.status = "Six islands. Your files stay on your computer.";
+      } catch (error) { if (generation === this._generation) this.status = "3D is unavailable here. Search and settings are ready to use."; }
+    },
+    toggle() {
+      this.enabled = !this.enabled;
+      try { localStorage.setItem("velora-world", this.enabled ? "on" : "off"); } catch (_) {}
+      if (this.enabled) this.load();
+      else { this._generation++; this._scene?.dispose(); this._scene = null; this.ready = false; this.exploring = false; this.status = "3D disabled. Search works as usual."; }
+    },
+    explore() { this.exploring = !this.exploring; this._scene?.explore(this.exploring); },
+    pause() { this.paused = !this.paused; this._scene?.pause(this.paused); },
+    travel(index: number) { this._scene?.travel(index); },
+  },
+  mounted() {
+    try { this.enabled = localStorage.getItem("velora-world") !== "off"; } catch (_) {}
+    (window as any).veloraSceneVisibility = (visible: boolean) => this._scene?.visible(visible);
+    if (this.enabled) this.load(); else this.status = "3D disabled. Search works as usual.";
+  },
+  beforeUnmount() { this._generation++; this._scene?.dispose(); delete (window as any).veloraSceneVisibility; },
+};
+</script>
+<style scoped>
+.world { position: relative; overflow: hidden; border: 1px solid #41676b; border-radius: 20px; margin-bottom: 24px; background: radial-gradient(ellipse at 50% 100%, #386c69, #173940); }
+.viewport { height: 260px; width: 100%; }
+.viewport canvas { display: block; width: 100%; height: 100%; outline-offset: -4px; }
+.toolbar { position: relative; display: flex; gap: 8px; align-items: center; padding: 12px; background: #112536ed; }
+.toolbar div { flex: 1; } small { display: block; color: #c1d9db; font-size: .75rem; margin-top: 5px; } button { font-size: .8rem; }
+nav { padding: 12px; background: #112536; } nav button { margin-right: 5px; }
+@media (max-width: 700px) { .toolbar { flex-wrap: wrap; } .toolbar div { flex-basis: 100%; } }
+</style>

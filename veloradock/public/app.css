@@ -1,0 +1,7 @@
+
+body { margin: 0; background: #101a2b; color: #f0f5fc; font-family: system-ui, sans-serif; }
+button { cursor: pointer; font: inherit; background: #20364a; color: #f0f5fc; border: 1px solid #567088; border-radius: 8px; padding: 9px 13px; }
+button:disabled { opacity: .55; cursor: wait; }
+:focus-visible { outline: 3px solid #72e6bd; outline-offset: 3px; }
+input, textarea, select { font: inherit; background: #16263a; color: #f0f5fc; border: 1px solid #567088; padding: 9px; border-radius: 8px; }
+@media (prefers-reduced-motion: no-preference) { button { transition: background .12s ease; } }

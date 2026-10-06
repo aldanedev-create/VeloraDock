@@ -1,0 +1,64 @@
+<template>
+  <section>
+    <p role="status">{{ message }}</p>
+    <article>
+      <h2>Apps and local files</h2>
+      <button @click="apps" :disabled="busy">Refresh Start Menu apps</button>
+      <p>{{ state.app_count }} apps · {{ state.file_count }} indexed files</p>
+      <label>Folder path <input v-model="folder" placeholder="C:\Users\you\Documents"></label>
+      <button @click="chooseFolder">Browse</button><button @click="index" :disabled="busy">Index folder</button>
+      <ul><li v-for="root in state.roots" :key="root.id">{{ root.path }} <button @click="remove('root', root.id)">Disconnect</button></li></ul>
+      <p>Filename search only. Up to 50,000 files per folder; reindex to detect changes. Symlink folders are excluded.</p>
+    </article>
+  </section>
+</template>
+<script lang="ts">
+import { request, native } from "../api.ts";
+
+export default {
+  props: ["token"],
+  data() {
+    return {
+      state: { roots: [], app_count: 0, file_count: 0 },
+      message: "",
+      folder: "",
+      busy: false,
+    };
+  },
+  methods: {
+    async load() {
+      this.state = await request("/api/state", this.token);
+    },
+    async perform(path: string, payload: object = {}) {
+      this.busy = true;
+      try {
+        const result = await request(path, this.token, payload);
+        this.message = JSON.stringify(result);
+        await this.load();
+      } catch (error) {
+        this.message = String(error);
+      } finally { this.busy = false; }
+    },
+    async chooseFolder() { if (native()) this.folder = await native().choose_folder() || this.folder; },
+    async apps() { await this.perform("/api/apps"); },
+    async index() { await this.perform("/api/index", { path: this.folder }); },
+    async remove(kind: string, id: string) { await this.perform("/api/remove", { kind, id }); },
+  },
+  async mounted() {
+    try { await this.load(); }
+    catch (error) { this.message = String(error); }
+  },
+};
+</script>
+<style scoped>
+
+article { background: #162337; border: 1px solid #334b60; border-radius: 14px; padding: 20px; margin: 18px 0; }
+h2 { font-size: 1.15rem; }
+label { display: block; margin: 12px 0; }
+label input:not([type="checkbox"]), textarea { display: block; width: 100%; box-sizing: border-box; margin-top: 6px; }
+button { margin: 4px; }
+p { color: #becddd; line-height: 1.5; }
+li { margin-bottom: 10px; overflow-wrap: anywhere; }
+pre { white-space: pre-wrap; max-height: 300px; overflow: auto; }
+
+</style>

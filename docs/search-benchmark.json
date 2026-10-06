@@ -1,0 +1,13 @@
+{
+  "platform": "Linux-6.18.44-x86_64-with-glibc2.39",
+  "python": "3.12.14",
+  "fixture_files": 10000,
+  "samples": 100,
+  "warmup": 20,
+  "median_ms": 0.9815755001909565,
+  "p95_ms": 3.15093600011096,
+  "max_ms": 6.164758999602782,
+  "scope": "Warm Python provider + SQLite search; excludes UI/network/native hotkey",
+  "hotkey_to_ui": "Not measured on this host",
+  "windows_idle_memory": "Not measured on this host"
+}
