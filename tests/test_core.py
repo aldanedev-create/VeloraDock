@@ -112,3 +112,21 @@ def test_store_identity_matches_reserved_values():
     assert identity.attrib['Publisher'] == 'CN=50CA2AC2-0155-44AC-B2B0-47100A3FB6E2'
     assert identity.attrib['Version'] == '1.0.0.0'
     assert root.find('p:Properties/p:PublisherDisplayName', ns).text == 'Happy Recorder 3D'
+
+
+def test_store_closes_connections_and_rolls_back(tmp_path):
+    import sqlite3
+    from veloradock.store import Store
+    store = Store(tmp_path / 'database')
+    with store.connect() as connection:
+        connection.execute("INSERT INTO settings VALUES (?, ?)", ('saved', 'true'))
+    with pytest.raises(sqlite3.ProgrammingError):
+        connection.execute('SELECT 1')
+    with pytest.raises(RuntimeError):
+        with store.connect() as transaction:
+            transaction.execute("INSERT INTO settings VALUES (?, ?)", ('discarded', 'true'))
+            raise RuntimeError('Abort transaction')
+    assert store.setting('saved') is True
+    assert store.setting('discarded') is None
+    with pytest.raises(sqlite3.ProgrammingError):
+        transaction.execute('SELECT 1')

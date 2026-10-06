@@ -1,4 +1,5 @@
 """SQLite state. Each operation uses a separate connection."""
+from contextlib import contextmanager
 import json
 import sqlite3
 import threading
@@ -26,10 +27,15 @@ class Store:
                 CREATE TABLE IF NOT EXISTS extensions(id TEXT PRIMARY KEY, manifest TEXT NOT NULL);
             """)
 
+    @contextmanager
     def connect(self):
         connection = sqlite3.connect(self.path, timeout=15)
         connection.row_factory = sqlite3.Row
-        return connection
+        try:
+            with connection:
+                yield connection
+        finally:
+            connection.close()
 
     def rows(self, sql, values=()):
         with self.connect() as connection:
